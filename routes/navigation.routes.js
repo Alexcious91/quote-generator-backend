@@ -1,8 +1,10 @@
 const express = require("express")
 const router = express.Router();
-const { database, auth, firebaseConfig } = require("../firebase-config");
-const { collection, addDoc, getDocs, query, where } = require("firebase/firestore");
-const { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } = require("firebase/auth");
+const bcrypt = require("bcrypt")
+const { database, auth } = require("../firebase-config");
+const { collection, addDoc, getDocs, query, where, doc, getDoc } = require("firebase/firestore");
+const { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile } = require("firebase/auth");
+const { default: getUserDetails } = require("../helper/getUserDetails");
 
 router.get("/quotes", async (req, res) => {
    try {
@@ -19,20 +21,22 @@ router.get("/quotes", async (req, res) => {
 
 router.post("/user/register", async (req, res) => {
    const { username, email, password } = req.body
-   
+
    try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user;
-      
+
       const userCollection = collection(database, "users");
+
 
       await addDoc(userCollection, {
          uid: user.uid,
-         displayName: username,
+         username: username,
          email: email,
          password: password,
          createdAt: new Date()
       })
+      await updateProfile(user, { displayName: username })
 
       res.status(201).send("User created successfully")
    } catch (error) {
@@ -56,11 +60,12 @@ router.post("/user/login", async (req, res) => {
 
 router.post("/new/quote", async (req, res) => {
    const { author, quote } = req.body;
+   const { userEmail, userSnapshot } = getUserDetails()
 
    try {
       const quotesCollection = collection(database, "quotes");
       await addDoc(quotesCollection, {
-         author: author,
+         author: userEmail,
          quote: quote,
          createdAt: new Date()
       })
@@ -71,25 +76,54 @@ router.post("/new/quote", async (req, res) => {
    }
 })
 
-router.get("/user/details", async (req, res) => {
+router.post("/user/edit-profile", async (req, res) => {
+   const { username } = req.body;
+   const user = auth.currentUser
    try {
-      const user = auth.currentUser;
-      console.log(user)
-      if (user) {
-         res.status(200).json(user)
-      } else {
-         return res.status(401).send("Unauthorized: no user logged in")
-      }
+      await updateProfile(user, {
+         displayName: username
+      })
 
+      await collection("users").doc(user.uid).update({
+         username: username
+      })
+      res.status(200).send("Profile update successfully")
    } catch (error) {
-      console.error(`Error fetching user: ${error}`)
-      res.status(401).send("Unauthorized: no user logged in")
+      console.error(error)
+      res.status(500).send("Internal Server Error")
    }
 })
 
-router.get("firebase-config", (req, res) => {
-   const config = firebaseConfig
-   console.log(config)
+router.get("/user/details", async (req, res) => {
+   try {
+      const user = auth.currentUser;
+      if (user) {
+         res.status(501).send("Unauthorized: no user logged in")
+      }
+
+      const userDocRef = doc(database, "users", auth.currentUser.uid)
+      const userSnapshot = await getDoc(userDocRef)
+
+      if (userSnapshot.exists()) {
+         const userData = userSnapshot.data();
+         res.status(200).json(userData)
+      } else {
+         res.status("404").send("User not found")
+      }
+   } catch (error) {
+      res.status(500).send("Internal Server Error")
+   }
+})
+
+router.get("/user/logout", async (req, res) => {
+   try {
+      const response = await signOut(auth)
+
+      console.log(response)
+      res.status(200).send("Successfully logged out")
+   } catch (error) {
+      res.status(500).send("Couldn't sign user out, try again.")
+   }
 })
 
 module.exports = router
