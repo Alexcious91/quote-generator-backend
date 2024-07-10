@@ -154,6 +154,7 @@ router.post("/new/quote", async (req, res) => {
          const userData = userDoc.data() // get user data
          const updatedQuotes = [ ...userData.myQuotes, newQuote ] // retrive myQuotes from user doc & update
 
+         console.log(`updated quotes: ${updatedQuotes}`)
          await updateDoc(userDocRef, {
             myQuotes: updatedQuotes // update myQuotes prop
          })
