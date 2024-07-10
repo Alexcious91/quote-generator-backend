@@ -4,7 +4,7 @@ const { getDoc, doc } = require("firebase/firestore")
 
 const getUserDetails = async () => {
    const userCredential = auth.currentUser // get current user logged in
-   const userEmail = userCredential.email
+   const userDisplayName = userCredential.displayName
 
    const userDocRef = doc(database, "users", userCredential.email) // single document of the user logged in 
    const userDoc = await getDoc(userDocRef)
@@ -12,9 +12,9 @@ const getUserDetails = async () => {
    if (userDoc.exists()) {
       const userSnapshot = userDoc.data();
       console.log(userSnapshot);
-      return { userEmail, userSnapshot }
+      return { userDisplayName, userSnapshot }
    }
-   return { userEmail, userSnapshot }
+   return { userDisplayName, userSnapshot }
 }
 
 module.exports = getUserDetails;
