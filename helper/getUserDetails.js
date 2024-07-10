@@ -1,5 +1,5 @@
 const { database, auth } = require("../firebase-config")
-const { collection, getDoc, doc } = require("firebase/firestore")
+const { getDoc, doc } = require("firebase/firestore")
 
 
 const getUserDetails = async () => {
