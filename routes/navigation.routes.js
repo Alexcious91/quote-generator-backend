@@ -25,12 +25,12 @@ router.get("/user/quotes", async (req, res) => {
    try {
       const user = auth.currentUser;
 
-      const userDocRef = doc(database, "users", user.uid)
-      const userDoc = await getDoc(userDocRef)
+      const quotesDocRef = doc(database, "quotes", user.uid)
+      const quotesDoc = await getDoc(quotesDocRef)
 
-      if (userDoc.exists()) {
-         console.log(userDoc.data())
-         res.status(200).json(userDoc.data())
+      if (quotesDoc.exists()) {
+         console.log(quotesDoc.data())
+         res.status(200).json(quotesDoc.data())
       } else {
          res.status(404).json({ message: "No such document" });
       }
