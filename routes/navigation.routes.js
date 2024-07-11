@@ -25,17 +25,22 @@ router.get("/user/quotes", async (req, res) => {
    try {
       const user = auth.currentUser;
 
+      if (!user) {
+         return res.status(401).json({ message: "Unauthorized" })
+      }
+
       const quotesDocRef = doc(database, "quotes", user.uid)
       const quotesDoc = await getDoc(quotesDocRef)
 
       if (quotesDoc.exists()) {
          console.log(quotesDoc.data())
-         res.status(200).json(quotesDoc.data())
+         return res.status(200).json(quotesDoc.data())
       } else {
-         res.status(404).json({ message: "No such document" });
+         return res.status(404).json({ message: "No such document" });
       }
    } catch (error) {
       console.log(`[ERROR]: ${error}`)
+      res.status(500).json({ message: "Internal Server Error" })
    }
 })
 
