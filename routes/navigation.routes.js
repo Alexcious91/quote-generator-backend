@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require("bcrypt")
 const { v4: uuidv4 } = require("uuid")
 const { database, auth } = require("../firebase-config");
-const { collection, addDoc, getDocs, doc, getDoc, updateDoc, setDoc } = require("firebase/firestore");
+const { collection, addDoc, getDocs, doc, serverTimestamp, query, where, updateDoc } = require("firebase/firestore");
 const { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, fetchSignInMethodsForEmail } = require("firebase/auth");
 const { default: getUserDetails } = require("../helper/getUserDetails");
 const { firestore } = require("firebase-admin");
@@ -25,22 +25,24 @@ router.get("/user/quotes", async (req, res) => {
    try {
       const user = auth.currentUser;
 
-      if (!user) {
-         return res.status(401).json({ message: "Unauthorized" })
+      // if (!user) { 
+      //    return res.status(401).json({ message: "Unauthorized" })
+      // }
+
+      const quotesCollection = collection(database, "quotes");
+      const userQuotesQuery = query(quotesCollection, where("creator.uid", "==", user.uid))
+      const queryData = await getDocs(userQuotesQuery)
+
+      if (queryData.empty) {
+         return res.status(200).json({ quotes: [] });
       }
 
-      const quotesDocRef = doc(database, "quotes", user.uid)
-      const quotesDoc = await getDoc(quotesDocRef)
+      const quotes = queryData.docs.map(doc => doc.data())
+      return res.status(200).json({ quotes })
 
-      if (quotesDoc.exists()) {
-         console.log(quotesDoc.data())
-         return res.status(200).json(quotesDoc.data())
-      } else {
-         return res.status(404).json({ message: "No such document" });
-      }
    } catch (error) {
       console.log(`[ERROR]: ${error}`)
-      res.status(500).json({ message: "Internal Server Error" })
+      res.status(500).json({ message: "Internal Server Error", error: error })
    }
 })
 
@@ -60,12 +62,11 @@ router.post("/user/register", async (req, res) => {
          username: username,
          email: email,
          password: hashedPassword,
-         myQuotes: [],
          createdAt: new Date()
       })
       await updateProfile(user, { displayName: username })
 
-      res.status(201).send("User created successfully")
+      return res.status(201).send("User created successfully")
    } catch (error) {
       res.status(500).send(`Internal Server Error \n ${error}`)
       console.log(error.message)
@@ -112,8 +113,9 @@ router.get("/user/details", async (req, res) => {
          if (user) {
             return res.status(200).json(user)
          } else {
-            return new Error("Unauthorization: no user logged in")
+            res.status(401).json({ error: "Unauthorization: no user logged in" })
          }
+         return;
       })
    } catch (error) {
       console.error(`[ERROR]: ${error.message}`)
@@ -146,28 +148,35 @@ router.post("/new/quote", async (req, res) => {
             uid: user.uid,
             displayName: user.displayName
          }, // send user object
-         createdAt: new Date()
+         createdAt: serverTimestamp()
       }
 
       await addDoc(quotesCollection, newQuote)
 
-      // get user document
-      const userDocRef = doc(database, "users", user.uid)
-      const userDoc = await getDoc(userDocRef)
-
-      if (userDoc.exists()) {
-         const userData = userDoc.data() // get user data
-         const updatedQuotes = [ ...userData.myQuotes, newQuote ] // retrive myQuotes from user doc & update
-
-         console.log(`updated quotes: ${updatedQuotes}`)
-         await updateDoc(userDocRef, {
-            myQuotes: updatedQuotes // update myQuotes prop
-         })
-      }
       res.status(201).send("Quote added successfully")
    } catch (error) {
       console.error(`Error adding qoute: ${error}`)
       res.status(500).send("Internal Server Error")
+   }
+})
+
+router.post("/edit/quote/:quoteId", async (req, res) => {
+   try {
+      const { quote } = req.body;
+      const { quoteId } = req.params;
+
+      const user = auth.currentUser;
+
+      const quotesCollection = collection(database, "quotes")
+      // const quotesQuery = query(quotesCollection, where("id", "==", quoteId))
+      const quoteDocRef = doc(quotesCollection, quoteId)
+
+      await updateDoc(quoteDocRef, {
+         quote: quote
+      })
+      res.status(200).json({ message: "Updated quote successfully" })
+   } catch (error) {
+      res.status(404).json({ error: error })
    }
 })
 
