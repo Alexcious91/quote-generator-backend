@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require("bcrypt")
 const { v4: uuidv4 } = require("uuid")
 const { database, auth } = require("../firebase-config");
-const { collection, addDoc, getDocs, doc, serverTimestamp, query, where, updateDoc } = require("firebase/firestore");
+const { collection, addDoc, getDocs, doc, serverTimestamp, query, where, updateDoc, getDoc, deleteDoc } = require("firebase/firestore");
 const { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, fetchSignInMethodsForEmail } = require("firebase/auth");
 const { default: getUserDetails } = require("../helper/getUserDetails");
 const { firestore } = require("firebase-admin");
@@ -112,10 +112,7 @@ router.get("/user/details", async (req, res) => {
       auth.onAuthStateChanged(async (user) => {
          if (user) {
             return res.status(200).json(user)
-         } else {
-            res.status(401).json({ error: "Unauthorization: no user logged in" })
          }
-         return;
       })
    } catch (error) {
       console.error(`[ERROR]: ${error.message}`)
@@ -160,21 +157,38 @@ router.post("/new/quote", async (req, res) => {
    }
 })
 
-router.post("/edit/quote/:quoteId", async (req, res) => {
+router.put("/edit/quote/:quoteId", async (req, res) => {
    try {
       const { quote } = req.body;
       const { quoteId } = req.params;
 
-      const user = auth.currentUser;
-
       const quotesCollection = collection(database, "quotes")
-      // const quotesQuery = query(quotesCollection, where("id", "==", quoteId))
-      const quoteDocRef = doc(quotesCollection, quoteId)
+      const quotesQuery = query(quotesCollection, where("id", "==", quoteId))
+      const querySnapshot = await getDocs(quotesQuery)
 
+      const quoteDocRef = doc(database, "quotes", querySnapshot.docs[0].id)
       await updateDoc(quoteDocRef, {
          quote: quote
       })
-      res.status(200).json({ message: "Updated quote successfully" })
+
+      res.status(200).json({ message: "Quote updated successfully" })
+   } catch (error) {
+      res.status(404).json({ error: error })
+   }
+})
+
+router.delete("/delete/quote/:quoteId", async (req, res) => {
+   try {
+      const { quoteId } = req.params;
+
+      const quotesCollection = collection(database, "quotes");
+      const quotesQuery = query(quotesCollection, where("id", "==", quoteId));
+      const quoteSnapshot = await getDocs(quotesQuery);
+
+      const quoteDocRef = doc(database, "quotes", quoteSnapshot.docs[0].id)
+      await deleteDoc(quoteDocRef)
+
+      return res.status(200).json({ message: "Quote deleted successfully" })
    } catch (error) {
       res.status(404).json({ error: error })
    }
